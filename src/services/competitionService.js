@@ -1,0 +1,86 @@
+import api from './api';
+
+// ---------- Competition (Kahoot-style club-vs-club live quiz) ----------
+// A quiz is not scoped to any one club (spec item 8) — any student who
+// already belongs to a club can join with the quiz code, but only one
+// representative per club may play in a given quiz (spec item 10). The
+// leaderboard ranks clubs, not individual students (spec items 13, 15–17).
+
+/**
+ * GET /api/competition-quizzes — every quiz in the college. Everyone can
+ * see it exists (title/status/question count); the code and answers stay
+ * hidden unless you manage that specific quiz.
+ * Response: { quizzes: [{ id, title, description, status, question_count,
+ *   created_by_name, created_at, can_manage, quiz_code (only if can_manage) }] }
+ */
+export function fetchCompetitionQuizzes() {
+  return api.get('/competition-quizzes').then((res) => res.data.quizzes);
+}
+
+/** GET /api/competition-quizzes/:id → { quiz } */
+export function fetchCompetitionQuiz(quizId) {
+  return api.get(`/competition-quizzes/${quizId}`).then((res) => res.data.quiz);
+}
+
+/**
+ * POST /api/competition-quizzes — faculty/hod/college_admin only.
+ * questions: [{ text, options: [string,...2-6], correct_index, time_limit_seconds (5-60), max_points }]
+ * Response: { quiz } — including quiz_code (creator-only view)
+ */
+export function createCompetitionQuiz({ title, description, questions }) {
+  return api.post('/competition-quizzes', { title, description, questions }).then((res) => res.data.quiz);
+}
+
+/** DELETE /api/competition-quizzes/:id — manager only. Response: { ok: true } */
+export function deleteCompetitionQuiz(quizId) {
+  return api.delete(`/competition-quizzes/${quizId}`).then((res) => res.data);
+}
+
+/**
+ * POST /api/competition-quizzes/join — enter a quiz code. You must already
+ * be a member of a club. If a teammate already joined on your club's
+ * behalf, this fails with a 409 whose body names them.
+ * Response: { ok, quiz_id, title, club_name }
+ */
+export function joinCompetitionQuiz(code) {
+  return api.post('/competition-quizzes/join', { code }).then((res) => res.data);
+}
+
+/** POST /api/competition-quizzes/:id/start — host only, moves the quiz from lobby into question 1 for everyone at once. Response: { ok: true } */
+export function startCompetitionQuiz(quizId) {
+  return api.post(`/competition-quizzes/${quizId}/start`).then((res) => res.data);
+}
+
+/**
+ * GET /api/competition-quizzes/:id/session — poll this (e.g. every 1–1.5s)
+ * while a quiz is running. Response shape depends on session.status:
+ *  - 'lobby':    { id, title, status, is_host, joined, total_questions, participant_count (host only) }
+ *  - 'live':     + { current_index, question: { id, index, text, options,
+ *                 time_limit_seconds, max_points }, time_remaining_ms, answered }
+ *  - 'between':  + { question_result: { correct_index, ... }, between_remaining_ms,
+ *                 leaderboard: { top: [{rank,club_id,club_name,points}], mine } }
+ *  - 'finished': + { final_leaderboard: { top: [...], mine } }
+ */
+export function fetchCompetitionQuizSession(quizId) {
+  return api.get(`/competition-quizzes/${quizId}/session`).then((res) => res.data.session);
+}
+
+/** POST /api/competition-quizzes/:id/answer — submit the currently-live question's answer, scoring for your whole club. Response: { correct, points, total_score } */
+export function submitCompetitionQuizAnswer(quizId, optionIndex) {
+  return api.post(`/competition-quizzes/${quizId}/answer`, { option_index: optionIndex }).then((res) => res.data);
+}
+
+/** GET /api/competition-quizzes/:id/leaderboard — full club-ranked list for one quiz. Response: { quiz_title, leaderboard: [{rank,club_id,club_name,points}] } */
+export function fetchCompetitionQuizLeaderboard(quizId) {
+  return api.get(`/competition-quizzes/${quizId}/leaderboard`).then((res) => res.data);
+}
+
+/**
+ * GET /api/competition-quizzes/:id/participants — who has joined so far.
+ * Faculty/host view includes full identity per row; the participant view
+ * only sees which clubs are represented and by whom.
+ * Response: { participants: [{ name, username (host only), roll_number (host only), club_name, joined, joined_at (host only) }] }
+ */
+export function fetchCompetitionQuizParticipants(quizId) {
+  return api.get(`/competition-quizzes/${quizId}/participants`).then((res) => res.data.participants);
+}
